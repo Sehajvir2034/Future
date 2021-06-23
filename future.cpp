@@ -16,7 +16,11 @@ public:
     string clientId;
     int noOfTrades;
     long totalBuy;
+    long totalSell;
+    long buyCurrent;
+    long sellCurrent;
     long currentValue;
+    long marginValue;
     vector <string> symbols;
     vector<string> quantities;
     vector<string> buyPrice;
@@ -24,12 +28,26 @@ public:
     Client(string clientIdentity){
         clientId = clientIdentity;
         totalBuy = 0.0;
+        totalSell = 0.0;
+        marginValue = 0.0;
         noOfTrades = 0;
         currentValue = 0.0;
     }
 };
 
-void totalMTM(Client c, vector<string> futSymbols, vector<string> futQuant,vector<string> currSymbols,vector<string> currPrices,vector<string>nonEquitySymbols,vector<string> nonEquityLotsize){
+void totalMargin(Client c,vector<string> marginSymbols,vector<string> marginValues){
+    for(int i = 0 ; i < c.noOfTrades;i++){
+        auto it = find(marginSymbols.begin(),marginSymbols.end(),c.symbols[i]);
+        if(it!=marginSymbols.end()){
+            int index = it - marginSymbols.begin();
+            c.marginValue += (stold(c.quantities[i])*stold(marginValues[index]));
+            //cout << c.quantities[i] << " " << c.buyPrice[i] << " " << marginValues[index] << endl;
+        }
+    }
+    cout << "Total margin for client " << c.clientId << " is:" << c.marginValue << endl;
+}
+
+void totalMTM(Client c, vector<string> futSymbols, vector<string> futQuant,vector<string> currSymbols,vector<string> currPrices,vector<string>nonEquitySymbols,vector<string> nonEquityLotsize,vector<string>marginSymbols,vector<string>marginValues){
     const int MAXLEN = 80;
     char s[MAXLEN];
     time_t t = time(0);
@@ -54,39 +72,83 @@ void totalMTM(Client c, vector<string> futSymbols, vector<string> futQuant,vecto
             auto it1 = find(nonEquitySymbols.begin(),nonEquitySymbols.end(),c.symbols[i]);
             if(it1 != nonEquitySymbols.end()){
                 int index1 = it1 - nonEquitySymbols.begin();
+                if(stold(c.quantities[i]) > 0){
+                    c.totalBuy += (stold(c.quantities[i])* stold(c.buyPrice[i])* stold(nonEquityLotsize[index1]));
+                    c.buyCurrent += (stold(c.quantities[i])*stold(currPrices[i])*stold(nonEquityLotsize[index1]));
+                    auto symbolIndex = find(marginSymbols.begin(),marginSymbols.end(),c.symbols[i]);
+                    if(symbolIndex != marginSymbols.end()){
+                        int symbInd = symbolIndex - marginSymbols.begin();
+                        cout << currPrices[i] << " " << c.quantities[i] << " " << nonEquityLotsize[index1] << " " << c.buyPrice[i] << " " << marginValues[symbInd] <<endl;
+                        newFile1 << (((stold(currPrices[i]) * stold(c.quantities[i]) * stold(nonEquityLotsize[index1]))-(stold(c.buyPrice[i])*stold(c.quantities[i]) * stold(nonEquityLotsize[index1])))/(stold(marginValues[symbInd])*stold(c.quantities[i])))<<",";
+                    }
+                }else{
+                    c.totalSell += (stold(c.quantities[i]) *stold(c.buyPrice[i])* stold(nonEquityLotsize[index1]));
+                    c.sellCurrent += (stold(c.quantities[i])*stold(currPrices[i])*stold(nonEquityLotsize[index1]));
+                    auto ind = find(marginSymbols.begin(),marginSymbols.end(),c.symbols[i]);
+                    if(ind != marginSymbols.end()){
+                        int index4 = ind - marginSymbols.begin();
+                        cout << currPrices[i] << " " << c.quantities[i] << " " << nonEquityLotsize[index1] << " " << c.buyPrice[i] << " " << marginValues[index4] <<endl;
+                        newFile1 << (((stold(currPrices[i]) * stold(c.quantities[i]) * stold(nonEquityLotsize[index1]))-(stold(c.buyPrice[i])*stold(c.quantities[i]) * stold(nonEquityLotsize[index1])))/(stold(marginValues[index4])*stold(c.quantities[i])))<<',';
+                    }
+                }
 
-                c.totalBuy += (stof(c.quantities[i])* stof(c.buyPrice[i])* stof(nonEquityLotsize[index1]));
-                c.currentValue += (stof(c.quantities[i])*stof(currPrices[i])*stof(nonEquityLotsize[index1]));
+                //c.totalBuy += (stold(c.quantities[i])* stold(c.buyPrice[i])* stold(nonEquityLotsize[index1]));
+                //c.currentValue += (stold(c.quantities[i])*stold(currPrices[i])*stold(nonEquityLotsize[index1]));
 
-                cout << currPrices[i] << " " << c.quantities[i] << " " << nonEquityLotsize[index1] << " " << c.buyPrice[i] << endl;
-                newFile1 << (((stof(currPrices[i]) * stof(c.quantities[i]) * stof(nonEquityLotsize[index1]))-(stof(c.buyPrice[i])*stof(c.quantities[i]) * stof(nonEquityLotsize[index1])))/(stof(c.buyPrice[i])*stof(nonEquityLotsize[index1])*stof(c.quantities[i])))<< ",";
+                //cout << currPrices[i] << " " << c.quantities[i] << " " << nonEquityLotsize[index1] << " " << c.buyPrice[i] << endl;
+                //newFile1 << (((stold(currPrices[i]) * stold(c.quantities[i]) * stold(nonEquityLotsize[index1]))-(stold(c.buyPrice[i])*stold(c.quantities[i]) * stold(nonEquityLotsize[index1])))/(stold(c.buyPrice[i])*stold(nonEquityLotsize[index1])*stold(c.quantities[i])))<< ",";
                 
             }else{
                 int index = it - futSymbols.begin();
+                if(stold(c.quantities[i]) > 0){
+                    c.totalBuy += (stold(c.quantities[i])*stold(currPrices[i])*stold(futQuant[index]));
+                    c.buyCurrent += (stold(c.quantities[i])*stold(currPrices[i])*stold(futQuant[index]));
+                    auto indexx = find(marginSymbols.begin(),marginSymbols.end(),c.symbols[i]);
+                    if(indexx != marginSymbols.end()){
+                        int index5 = indexx - marginSymbols.begin();
+                        cout << currPrices[i] << " " << c.quantities[i] << " " << futQuant[index] << " " << c.buyPrice[i] << " " << marginValues[index5] <<endl;
+                        newFile1 << (((stold(currPrices[i]) * stold(c.quantities[i]) * stold(futQuant[index]))-(stold(c.buyPrice[i])*stold(c.quantities[i]) * stold(futQuant[index])))/(stold(marginValues[index5])*stold(c.quantities[i])))<<",";
+                    }
+                }else{
+                    c.totalSell += (stold(c.quantities[i]) *stold(c.buyPrice[i])* stold(futQuant[index]));
+                    c.sellCurrent += (stold(c.quantities[i])*stold(currPrices[i])*stold(futQuant[index]));
+                    auto indexxx = find(marginSymbols.begin(),marginSymbols.end(),c.symbols[i]);
+                    if(indexxx != marginSymbols.end()){
+                        int index6 = indexxx - marginSymbols.begin();
+                        cout << currPrices[i] << " " << c.quantities[i] << " " << futQuant[index] << " " << c.buyPrice[i] << " " << marginValues[index6] <<endl;
+                        newFile1 << (((stold(currPrices[i]) * stold(c.quantities[i]) * stold(futQuant[index]))-(stold(c.buyPrice[i])*stold(c.quantities[i]) * stold(futQuant[index])))/(stold(marginValues[index6])*stold(c.quantities[i])))<<',';
+                    }
+                    
+                }
 
-                c.totalBuy += (stof(c.quantities[i]) * stof(c.buyPrice[i]) * stof(futQuant[index]));
-                c.currentValue += (stof(c.quantities[i])*stof(currPrices[i])*stof(futQuant[index]));
+                //c.totalBuy += (stold(c.quantities[i]) * stold(c.buyPrice[i]) * stold(futQuant[index]));
+                //c.currentValue += (stold(c.quantities[i])*stold(currPrices[i])*stold(futQuant[index]));
 
-                cout << currPrices[i] << " " << c.quantities[i] << " " << futQuant[index] << " " << c.buyPrice[i] << endl;
-                newFile1 << (((stof(currPrices[i]) * stof(c.quantities[i]) * stof(futQuant[index]))-(stof(c.buyPrice[i])*stof(c.quantities[i]) * stof(futQuant[index])))/(stof(c.buyPrice[i])*stof(futQuant[index])*stof(c.quantities[i])))<< ",";
+                //cout << currPrices[i] << " " << c.quantities[i] << " " << futQuant[index] << " " << c.buyPrice[i] << endl;
+                //newFile1 << (((stold(currPrices[i]) * stold(c.quantities[i]) * stold(futQuant[index]))-(stold(c.buyPrice[i])*stold(c.quantities[i]) * stold(futQuant[index])))/(stold(c.buyPrice[i])*stold(futQuant[index])*stold(c.quantities[i])))<< ",";
             }
         }
         else {cout << "-1" << endl;}
        
     }    
     cout << "Total buy for client: " << c.clientId << " " << c.totalBuy << endl;
-    cout << "Current Value of stocks for client: " << c.clientId << " " << c.currentValue << endl << endl;
+    cout << "Total sell for client: " << c.clientId << " " << c.totalSell << endl;
+    cout << "Current selling price :" << c.clientId << " " << c.sellCurrent << endl;
+    totalMargin(c,marginSymbols,marginValues);
+    //cout << "Current Value of stocks for client: " << c.clientId << " " << endl << endl;
 
     ofstream newFile;
 
     string str = c.clientId + "_NET_" + s + ".csv";
     newFile.open(str);
-    newFile << "Time Stamp,Buy Value,Absolute MTM,Percentage MTM\n";
+    newFile << "Time Stamp,Buy Value,Sell Value,Buy MTM,Sell MTM,Percentage MTM\n";
     newFile << s << ",";
-    newFile << c.totalBuy << "," << c.currentValue - c.totalBuy << "," << ((float)(c.currentValue - c.totalBuy)/c.totalBuy)*100;
+    newFile << c.totalBuy << "," << abs(c.totalSell) << "," << float(c.buyCurrent-c.totalBuy)/(c.totalBuy) << "," << float(abs(c.sellCurrent)-abs(c.totalSell))/(c.totalSell);
     
     
 }
+
+
 
 int main(){
     const int MAXLEN = 80;
@@ -123,27 +185,25 @@ int main(){
     Clients.push_back(client2_1);
     Clients.push_back(client3_1);
 
-    ifstream total_order_file;
-    total_order_file.open("C:\\Users\\DESKTOP\\Desktop\\Future\\total_orders2021-06-11.csv");
+    ifstream trade_order_file;
+    trade_order_file.open("C:\\Users\\DESKTOP\\Desktop\\Future\\trade_file2021-06-11.csv");
 
-    if(!total_order_file.is_open()) std::cout << "ERROR: Can't open Total Order File" << '\n';
+    if(!trade_order_file.is_open()) std::cout << "ERROR: Can't open Trade File" << '\n';
 
     string index;
     string symbol;
+    string price;
     string quantity;
     string client_id;
-    string orderType;
-    string price;
     string timeStamp;
 
-    while(total_order_file.good()){
-        getline(total_order_file, index, ',');
-        getline(total_order_file, symbol, ',');
-        getline(total_order_file, quantity, ',');
-        getline(total_order_file, client_id, ',');
-        getline(total_order_file, orderType, ',');
-        getline(total_order_file, price, ',');
-        getline(total_order_file, timeStamp, '\n');
+    while(trade_order_file.good()){
+        getline(trade_order_file, index, ',');
+        getline(trade_order_file, symbol, ',');
+        getline(trade_order_file, price, ',');
+        getline(trade_order_file, quantity, ',');
+        getline(trade_order_file, client_id, ',');
+        getline(trade_order_file, timeStamp, '\n');
 
         for(int i = 0; i < Clients.size();i++){
             if(client_id == Clients[i].clientId){
@@ -154,7 +214,7 @@ int main(){
             }
         }
     }
-    total_order_file.close();
+    //trade_order_file.close();
     // for(int i = 0 ; i < Clients.size();i++){
     //     cout << "Trade History for client: " << Clients[i].clientId << endl;
     //     for(int j = 0; j < Clients[i].noOfTrades ;j++){
@@ -211,23 +271,28 @@ int main(){
     if(!margin_file.is_open()) std:: cout << "ERROR: Can't open Margin File" << '\n';
 
     vector<string> marginSymbols;
-    vector<string> marginVlaues;
+    vector<string> marginValues;
 
     string index3;
     string symbol3;
     string value;
 
-    //while(margin_file.good()){
-    //    getline(margin_file,index3,',');
-    //    getline(margin_file,)
-    //}
+    while(margin_file.good()){
+        getline(margin_file,index3,',');
+        getline(margin_file,symbol3,',');
+        getline(margin_file,value,'\n');
+
+        marginSymbols.push_back(symbol3);
+        marginValues.push_back(value);
+    }
+
     //cout << futureFileSymbols.size() << " " << futureFileQuantities.size() << endl;
     for(int i = 0 ; i < Clients.size();i++){
-        totalMTM(Clients[i],futureFileSymbols,futureFileQuantities,currentSymbols,currentPrices,nonEquity,nonEquityMultipliers);
+        totalMTM(Clients[i],futureFileSymbols,futureFileQuantities,currentSymbols,currentPrices,nonEquity,nonEquityMultipliers,marginSymbols,marginValues);
     }
-    //totalMTM(Clients[1],futureFileSymbols,futureFileQuantities,currentSymbols,currentPrices);
-    //totalMTM(Clients[2],futureFileSymbols,futureFileQuantities,currentSymbols,currentPrices);
-
+    //totalMargin(Clients[0],marginSymbols,marginValues);
+    //totalMargin(Clients[1],marginSymbols,marginValues);
+    //totalMargin(Clients[2],marginSymbols,marginValues);
 
     return 0;   
 }
